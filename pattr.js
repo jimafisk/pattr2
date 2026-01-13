@@ -261,12 +261,8 @@ window.Pattr = {
                 return true;
             },
             // Required for 'with' statement to work correctly with proxy
-            // Return true for all string keys so that assignments go through the proxy setter
-            // instead of creating global variables
             has: (target, key) => {
-                // Only exclude Symbol.unscopables (used by 'with' to exclude properties)
-                if (typeof key === 'symbol') return key in target;
-                return true;
+                return key in target;
             }
         });
         return proxy;
@@ -492,11 +488,26 @@ window.Pattr = {
                 // 1. Create new inherited Proxy
                 currentScope = this.observe(localRawData, parentScope); 
                 
-                // 2. Execute p-scope assignments (e.g., count = count * 2)
-                try {
-                    eval(`with (currentScope) { ${localRawData._p_scope} }`);
-                } catch (e) {
-                    console.error(`Error executing p-scope expression on ${dataId}:`, e);
+                // 2. Execute p-scope assignments by parsing and setting directly on target
+                // This avoids issues with 'with' statement and the 'has' trap
+                // and prevents triggering walkDomScoped during initialization
+                const pScopeExpr = localRawData._p_scope;
+                const statements = pScopeExpr.split(';').map(s => s.trim()).filter(s => s);
+                const target = currentScope._p_target;
+                for (const stmt of statements) {
+                    // Extract variable name and expression from assignment
+                    const match = stmt.match(/^(\w+)\s*=\s*(.+)$/);
+                    if (match) {
+                        const [, varName, expr] = match;
+                        try {
+                            // Evaluate the RHS with 'with' (reading from scope works fine)
+                            // Then assign directly to the target to avoid triggering setter
+                            const value = eval(`with (currentScope) { (${expr}) }`);
+                            target[varName] = value;
+                        } catch (e) {
+                            console.error(`Error executing p-scope statement "${stmt}":`, e);
+                        }
+                    }
                 }
             } else {
                 // B. REFRESH PHASE (Use stored scope)
