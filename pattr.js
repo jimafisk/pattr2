@@ -258,6 +258,15 @@ window.Pattr = {
         // Execute p-scope assignments directly on target to avoid triggering setter
         this.executePScopeStatements(scope, localRawData._p_scope);
         
+        // Initialize parent snapshot so first refresh doesn't think everything changed
+        const parentProto = Object.getPrototypeOf(scope._p_target);
+        el._parentSnapshot = {};
+        for (let key in parentProto) {
+            if (!key.startsWith('_p_')) {
+                el._parentSnapshot[key] = parentProto[key];
+            }
+        }
+        
         return scope;
     },
 
@@ -281,18 +290,35 @@ window.Pattr = {
     },
 
     /**
-     * Parses and executes p-scope statements, setting values directly on target
+     * Parses and executes p-scope statements sequentially, setting values directly on target
+     * Each statement sees the results of previous statements
      */
     executePScopeStatements(scope, pScopeExpr) {
         const statements = pScopeExpr.split(';').map(s => s.trim()).filter(s => s);
         const target = scope._p_target;
+        
+        // Create a sequential scope that always reads from target first (for updated values)
+        // then falls back to the parent scope for inherited values
+        const sequentialScope = new Proxy(target, {
+            get: (t, key) => {
+                // First check if we have a local value (possibly updated by previous statement)
+                if (Object.prototype.hasOwnProperty.call(t, key)) {
+                    return t[key];
+                }
+                // Fall back to parent scope via prototype chain or original scope
+                return scope[key];
+            },
+            has: (t, key) => {
+                return Object.prototype.hasOwnProperty.call(t, key) || key in scope;
+            }
+        });
         
         for (const stmt of statements) {
             const match = stmt.match(/^(\w+)\s*=\s*(.+)$/);
             if (match) {
                 const [, varName, expr] = match;
                 try {
-                    const value = eval(`with (scope) { (${expr}) }`);
+                    const value = eval(`with (sequentialScope) { (${expr}) }`);
                     target[varName] = value;
                 } catch (e) {
                     console.error(`Error executing p-scope statement "${stmt}":`, e);
@@ -303,9 +329,11 @@ window.Pattr = {
 
     /**
      * Re-executes p-scope statements that depend on changed parent variables
+     * Statements are executed sequentially so each sees results of previous ones
      */
     updateScopeFromParent(el, scope, pScopeExpr) {
         const parentProto = Object.getPrototypeOf(scope._p_target);
+        const target = scope._p_target;
         
         // Track which parent variables changed
         const changedParentVars = new Set();
@@ -327,16 +355,30 @@ window.Pattr = {
         try {
             const statements = pScopeExpr.split(';').map(s => s.trim()).filter(s => s);
             
-            const tempScope = new Proxy(scope._p_target, {
-                get: (target, key) => {
+            // Track variables set during THIS re-execution pass
+            // Only read from local if it was set in this pass; otherwise read from parent
+            const setInThisPass = new Set();
+            
+            // Create a sequential scope that reads from parent FIRST (for new parent values)
+            // but uses local values for variables set by previous statements in this pass
+            const sequentialScope = new Proxy(target, {
+                get: (t, key) => {
                     if (key === '_p_target' || key === '_p_children' || key === '_p_scope') {
-                        return target[key];
+                        return t[key];
                     }
+                    // If this variable was set by a previous statement in this pass, use local
+                    if (setInThisPass.has(key)) {
+                        return t[key];
+                    }
+                    // Otherwise, read from parent (the NEW parent value)
                     return parentProto[key];
                 },
-                set: (target, key, value) => {
-                    target[key] = value;
+                set: (t, key, value) => {
+                    t[key] = value;
                     return true;
+                },
+                has: (t, key) => {
+                    return setInThisPass.has(key) || key in parentProto;
                 }
             });
             
@@ -352,8 +394,27 @@ window.Pattr = {
                     }
                 });
                 
+                // Also execute if the statement depends on a variable set earlier in this pass
+                if (!shouldExecute) {
+                    setInThisPass.forEach(varName => {
+                        const parts = stmt.split('=');
+                        if (parts.length > 1) {
+                            const rhs = parts.slice(1).join('=');
+                            if (rhs.includes(varName)) {
+                                shouldExecute = true;
+                            }
+                        }
+                    });
+                }
+                
                 if (shouldExecute) {
-                    eval(`with (tempScope) { ${stmt} }`);
+                    const match = stmt.match(/^(\w+)\s*=\s*(.+)$/);
+                    if (match) {
+                        const [, varName, expr] = match;
+                        const value = eval(`with (sequentialScope) { (${expr}) }`);
+                        target[varName] = value;
+                        setInThisPass.add(varName);
+                    }
                 }
             });
         } catch (e) {

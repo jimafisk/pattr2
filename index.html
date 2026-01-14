@@ -24,6 +24,13 @@
         <input type="text" p-model="name" p-on:focus="emoji = true" p-on:blur="emoji = false" />
         <span p-show="emoji">🤓</span>
         <hr>
+        <section p-id="l1r96" p-scope="count = count + 1; count = count * 2;">
+            <div>Sequential Scope (+1 *2):</div>
+            <div p-text="`New count to: ${count}`"></div>
+            <button p-on:click="count++">+</button>
+            <button p-on:click="count--">-</button>
+            <hr>
+        </section>
         <section p-id="ek753" p-scope="count = count * 2; name = name + 'o';">
             <div>Child Component (*2):</div>
             <div p-text="`${name} can count to: ${count}`"></div>
