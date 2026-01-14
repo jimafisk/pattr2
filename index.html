@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" p-id="root" p-scope="show_cats = false; cats = ['Ralph', 'Betsy', 'Drago']; add_cat = ''; emoji = false;">
+<html lang="en" p-id="root" p-scope="show_cats = false; cats = ['Ralph', 'Betsy', 'Drago']; add_cat = ''; emoji = false; coolname = name + 'cool';">
     <head>
         <link rel="icon" href="/favicon.svg" type="image/svg+xml">
         <script src="/pattr.js" defer></script>
@@ -13,6 +13,7 @@
     </head>
     <body>
         <h1 p-html:allow.strong.em:trim.18="title"></h1>
+        <div p-text="coolname"></div>
         <hr>
         <div p-attr="{'data-name': name + 'woah'}" p-attr:number="count * 3">Parent Component:</div>
         <button p-on:click="count++">+</button>

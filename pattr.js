@@ -267,6 +267,15 @@ window.Pattr = {
             }
         }
         
+        // Initialize local snapshot for tracking local variable changes
+        const target = scope._p_target;
+        el._localSnapshot = {};
+        for (let key of Object.keys(target)) {
+            if (!key.startsWith('_p_')) {
+                el._localSnapshot[key] = target[key];
+            }
+        }
+        
         return scope;
     },
 
@@ -328,19 +337,21 @@ window.Pattr = {
     },
 
     /**
-     * Re-executes p-scope statements that depend on changed parent variables
+     * Re-executes p-scope statements that depend on changed variables (parent or local)
      * Statements are executed sequentially so each sees results of previous ones
      */
     updateScopeFromParent(el, scope, pScopeExpr) {
         const parentProto = Object.getPrototypeOf(scope._p_target);
         const target = scope._p_target;
         
-        // Track which parent variables changed
+        // Track which variables changed in PARENT vs LOCAL separately
         const changedParentVars = new Set();
+        const changedLocalVars = new Set();
+        
+        // Check parent variable changes
         if (!el._parentSnapshot) {
             el._parentSnapshot = {};
         }
-        
         for (let key in parentProto) {
             if (!key.startsWith('_p_')) {
                 if (el._parentSnapshot[key] !== parentProto[key]) {
@@ -350,27 +361,56 @@ window.Pattr = {
             }
         }
         
-        if (changedParentVars.size === 0) return;
+        // Check local variable changes (variables that are OWN properties of target)
+        if (!el._localSnapshot) {
+            el._localSnapshot = {};
+        }
+        for (let key of Object.keys(target)) {
+            if (!key.startsWith('_p_')) {
+                if (el._localSnapshot[key] !== target[key]) {
+                    changedLocalVars.add(key);
+                }
+                el._localSnapshot[key] = target[key];
+            }
+        }
+        
+        // Combine for checking which statements to execute
+        const allChangedVars = new Set([...changedParentVars, ...changedLocalVars]);
+        
+        if (allChangedVars.size === 0) return;
         
         try {
             const statements = pScopeExpr.split(';').map(s => s.trim()).filter(s => s);
             
             // Track variables set during THIS re-execution pass
-            // Only read from local if it was set in this pass; otherwise read from parent
             const setInThisPass = new Set();
             
-            // Create a sequential scope that reads from parent FIRST (for new parent values)
-            // but uses local values for variables set by previous statements in this pass
+            // Create a sequential scope that:
+            // - Uses values from this pass if already computed
+            // - For PARENT-changed vars: reads from parent (new value)
+            // - For LOCAL-changed vars: reads from local (new value)
+            // - Otherwise: reads from local if exists, else parent
             const sequentialScope = new Proxy(target, {
                 get: (t, key) => {
                     if (key === '_p_target' || key === '_p_children' || key === '_p_scope') {
                         return t[key];
                     }
-                    // If this variable was set by a previous statement in this pass, use local
+                    // If this variable was set by a previous statement in this pass, use that
                     if (setInThisPass.has(key)) {
                         return t[key];
                     }
-                    // Otherwise, read from parent (the NEW parent value)
+                    // If this variable changed in PARENT, read from parent (new value)
+                    if (changedParentVars.has(key)) {
+                        return parentProto[key];
+                    }
+                    // If this variable changed LOCALLY, read from local (new value)
+                    if (changedLocalVars.has(key)) {
+                        return t[key];
+                    }
+                    // Otherwise, read current value (local if exists, else parent)
+                    if (Object.prototype.hasOwnProperty.call(t, key)) {
+                        return t[key];
+                    }
                     return parentProto[key];
                 },
                 set: (t, key, value) => {
@@ -378,13 +418,15 @@ window.Pattr = {
                     return true;
                 },
                 has: (t, key) => {
-                    return setInThisPass.has(key) || key in parentProto;
+                    return setInThisPass.has(key) || Object.prototype.hasOwnProperty.call(t, key) || key in parentProto;
                 }
             });
             
             statements.forEach(stmt => {
                 let shouldExecute = false;
-                changedParentVars.forEach(varName => {
+                
+                // Execute if the statement depends on any changed variable
+                allChangedVars.forEach(varName => {
                     const parts = stmt.split('=');
                     if (parts.length > 1) {
                         const rhs = parts.slice(1).join('=');
@@ -417,6 +459,13 @@ window.Pattr = {
                     }
                 }
             });
+            
+            // Update local snapshot with any newly computed values
+            for (let key of Object.keys(target)) {
+                if (!key.startsWith('_p_')) {
+                    el._localSnapshot[key] = target[key];
+                }
+            }
         } catch (e) {
             console.error(`Error re-executing p-scope expression:`, e);
         }
