@@ -1,36 +1,10 @@
-import { describe, it, expect, beforeEach } from 'vitest';
-import { JSDOM } from 'jsdom';
-import { readFileSync } from 'fs';
+import { describe, it, expect } from 'vitest';
+import { setupPattr } from './setup.js';
 
-// Load pattr.js source
-const pattrSource = readFileSync('./pattr.js', 'utf-8');
-
-describe('Pattr p-scope', () => {
-  let dom;
-  let window;
-  let document;
-  let Pattr;
-
-  function setupPattr(html) {
-    dom = new JSDOM(html, {
-      runScripts: 'dangerously',
-      url: 'http://localhost/',
-    });
-    window = dom.window;
-    document = window.document;
-    
-    // Execute pattr.js in the JSDOM context (without auto-start)
-    const script = document.createElement('script');
-    script.textContent = pattrSource.replace('window.Pattr.start()', '// Auto-start disabled for tests');
-    document.head.appendChild(script);
-    
-    Pattr = window.Pattr;
-    return Pattr;
-  }
-
+describe('p-scope directive', () => {
   describe('Sequential Execution', () => {
     it('should execute p-scope statements in order', async () => {
-      setupPattr(`<!DOCTYPE html>
+      const { document, Pattr } = setupPattr(`<!DOCTYPE html>
         <html>
           <head>
             <script id="p-root-data" type="application/json">{"count": 5, "_p_children": {"child1": {"_p_scope": "count = count + 1; count = count * 2"}}}</script>
@@ -53,7 +27,7 @@ describe('Pattr p-scope', () => {
     });
 
     it('should handle multiple sequential operations on same variable', async () => {
-      setupPattr(`<!DOCTYPE html>
+      const { document, Pattr } = setupPattr(`<!DOCTYPE html>
         <html>
           <head>
             <script id="p-root-data" type="application/json">{"age": 10, "_p_children": {"child1": {"_p_scope": "age = age + 1; age = age + 1; age = age * 2"}}}</script>
@@ -73,7 +47,7 @@ describe('Pattr p-scope', () => {
     });
 
     it('should use result of previous statement in next statement', async () => {
-      setupPattr(`<!DOCTYPE html>
+      const { document, Pattr } = setupPattr(`<!DOCTYPE html>
         <html>
           <head>
             <script id="p-root-data" type="application/json">{"_p_children": {"child1": {"_p_scope": "x = 2; y = x * 3; z = y + x"}}}</script>
@@ -98,7 +72,7 @@ describe('Pattr p-scope', () => {
 
   describe('Parent-Child Scope Inheritance', () => {
     it('should inherit values from parent scope', async () => {
-      setupPattr(`<!DOCTYPE html>
+      const { document, Pattr } = setupPattr(`<!DOCTYPE html>
         <html>
           <head>
             <script id="p-root-data" type="application/json">{"count": 5, "_p_children": {"child1": {"_p_scope": "count = count * 2"}}}</script>
@@ -119,7 +93,7 @@ describe('Pattr p-scope', () => {
     });
 
     it('should re-compute child when parent changes', async () => {
-      setupPattr(`<!DOCTYPE html>
+      const { document, Pattr } = setupPattr(`<!DOCTYPE html>
         <html>
           <head>
             <script id="p-root-data" type="application/json">{"count": 2, "_p_children": {"child1": {"_p_scope": "count = count * 2"}}}</script>
@@ -147,7 +121,7 @@ describe('Pattr p-scope', () => {
 
   describe('Local Variable Changes', () => {
     it('should NOT re-execute p-scope when local output variable changes', async () => {
-      setupPattr(`<!DOCTYPE html>
+      const { document, Pattr } = setupPattr(`<!DOCTYPE html>
         <html>
           <head>
             <script id="p-root-data" type="application/json">{"count": 2, "_p_children": {"seq": {"_p_scope": "count = count + 1; count = count * 2"}}}</script>
@@ -176,7 +150,7 @@ describe('Pattr p-scope', () => {
     });
 
     it('should re-execute p-scope when local INPUT variable changes', async () => {
-      setupPattr(`<!DOCTYPE html>
+      const { document, window, Pattr } = setupPattr(`<!DOCTYPE html>
         <html>
           <head>
             <script id="p-root-data" type="application/json">{"name": "Bob", "_p_children": {"root": {"_p_scope": "coolname = name + 'cool'"}}}</script>
@@ -205,7 +179,7 @@ describe('Pattr p-scope', () => {
 
   describe('Sibling Scope Independence', () => {
     it('should not affect sibling scopes when modifying one', async () => {
-      setupPattr(`<!DOCTYPE html>
+      const { document, Pattr } = setupPattr(`<!DOCTYPE html>
         <html>
           <head>
             <script id="p-root-data" type="application/json">{
