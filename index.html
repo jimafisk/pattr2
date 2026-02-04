@@ -13,35 +13,40 @@
     </head>
     <body>
         <h1 p-html:allow.strong.em:trim.18="title"></h1>
-        <div p-text="coolname"></div>
-        <div id="class-test" p-class="{'active': count > 2, 'highlight': count === 2, 'warning': count < 2}">Class Test</div>
         <hr>
         <div p-attr="{'data-name': name + 'woah'}" p-attr:number="count * 3">Parent Component:</div>
         <button p-on:click="count++">+</button>
         <button p-on:click="count--">-</button>
         <input type="number" p-model="count" />
         <div p-text:trim.25="`${name} can count to: ${count}`"></div>
-        <span p-show="count > 2">Greater than 2</span>
-        <span p-show="count < 2">Less than 2</span>
+        <div id="class-test" p-class="{'active': count > 2, 'highlight': count === 2, 'warning': count < 2}">
+            <span p-show="count > 2">Greater than 2</span>
+            <span p-show="count === 2">Exactly 2</span>
+            <span p-show="count < 2">Less than 2</span>
+        </div>
         <input type="text" p-model="name" p-on:focus="emoji = true" p-on:blur="emoji = false" />
         <span p-show="emoji">🤓</span>
+        <div id="coolname">
+            <span>Top-level scope (name + 'cool';):</span>
+            <span p-text="coolname"></span>
+        </div>
         <hr>
         <section p-id="l1r96" p-scope="count = count + 1; count = count * 2;">
-            <div>Sequential Scope (+1 *2):</div>
+            <div>Sequential Scope (count +1 *2):</div>
             <div p-text="`New count to: ${count}`"></div>
             <button p-on:click="count++">+</button>
             <button p-on:click="count--">-</button>
             <hr>
         </section>
         <section p-id="ek753" p-scope="count = count * 2; name = name + 'o';">
-            <div>Child Component (*2):</div>
+            <div>Child Component (count *2):</div>
             <div p-text="`${name} can count to: ${count}`"></div>
             <button p-on:click="count++">+</button>
             <button p-on:click="count--">-</button>
             <input type="text" p-model="name" />
             <hr>
             <section p-id="xf9g3" p-scope="count = count + 1; name = name + ' Burns';">
-                <div>Grandchild Component (+1):</div>
+                <div>Grandchild Component (child count +1):</div>
                 <div p-text="`${name} can count to: ${count}`"></div>
                 <button p-on:click="count++">+</button>
                 <button p-on:click="count--">-</button>

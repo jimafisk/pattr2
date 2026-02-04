@@ -98,7 +98,7 @@ test.describe('p-scope directive', () => {
   });
 
   test('parent name change updates derived values', async ({ page }) => {
-    const coolnameDisplay = page.locator('body > div[p-text="coolname"]');
+    const coolnameDisplay = page.locator('span[p-text="coolname"]');
     const nameInput = page.locator('input[p-model="name"]').first();
     const childNameDisplay = page.locator('section[p-id="ek753"] [p-text]').first();
     const grandchildNameDisplay = page.locator('section[p-id="xf9g3"] [p-text]').first();
