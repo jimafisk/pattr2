@@ -866,35 +866,15 @@ window.Pattr = {
     },
 
     /**
-     * Finds the last sibling element rendered by a template (including nested template output)
+     * Finds the last element rendered by a template (including nested template output)
      */
     findLastRenderedSibling(element) {
-        let last = element;
-        
-        // If this is a template with rendered elements, get the last one
+        // If this is a p-for template with rendered elements, get the last rendered element
         if (element.tagName === 'TEMPLATE' && element._forData && element._forData.renderedElements.length > 0) {
-            const nestedLast = element._forData.renderedElements[element._forData.renderedElements.length - 1];
-            last = this.findLastRenderedSibling(nestedLast);
+            const lastRendered = element._forData.renderedElements[element._forData.renderedElements.length - 1];
+            return this.findLastRenderedSibling(lastRendered);
         }
-        
-        // Also check the next sibling - it might be output from this element's nested template
-        let sibling = last.nextElementSibling;
-        while (sibling) {
-            // If sibling was rendered by a template that's part of our chain, include it
-            if (sibling._forTemplate === element._forTemplate || 
-                (element.tagName === 'TEMPLATE' && sibling._forTemplate === element)) {
-                last = sibling;
-                // Recursively check if this sibling also has nested output
-                if (sibling.tagName === 'TEMPLATE' && sibling._forData && sibling._forData.renderedElements.length > 0) {
-                    last = this.findLastRenderedSibling(sibling._forData.renderedElements[sibling._forData.renderedElements.length - 1]);
-                }
-                sibling = last.nextElementSibling;
-            } else {
-                break;
-            }
-        }
-        
-        return last;
+        return element;
     },
 
     createLoopScope(parentScope, varPattern, item) {
