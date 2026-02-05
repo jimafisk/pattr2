@@ -611,7 +611,7 @@ window.Pattr = {
                 renderedElements: []
             };
             
-            // Check for SSR-rendered elements
+            // Check for SSR-rendered elements (only direct children with p-for-key, not nested)
             const existingElementsByKey = {};
             let sibling = template.nextElementSibling;
             while (sibling && sibling.hasAttribute('p-for-key')) {
@@ -624,6 +624,8 @@ window.Pattr = {
             }
             
             let index = 0;
+            let lastInserted = template;
+            
             for (const item of iterable) {
                 const loopScope = this.createLoopScope(parentScope, varPattern, item);
                 
@@ -634,6 +636,7 @@ window.Pattr = {
                         this.setForTemplateRecursive(el, template);
                         this.walkDom(el, loopScope, true);
                         template._forData.renderedElements.push(el);
+                        lastInserted = el;
                     });
                 } else {
                     // Render from template
@@ -643,13 +646,20 @@ window.Pattr = {
                     elements.forEach(el => {
                         el._scope = loopScope;
                         this.setForTemplateRecursive(el, template);
+                        // Only set p-for-key on non-template elements at this level
+                        if (el.tagName !== 'TEMPLATE') {
+                            el.setAttribute('p-for-key', index);
+                        }
                         this.walkDom(el, loopScope, true);
-                        template._forData.renderedElements.push(el);
                     });
                     
-                    const insertAfter = template._forData.renderedElements[template._forData.renderedElements.length - 1] || template;
-                    insertAfter.parentNode.insertBefore(clone, insertAfter.nextSibling);
+                    // Insert elements after the last inserted element
+                    const fragment = document.createDocumentFragment();
+                    elements.forEach(el => fragment.appendChild(el));
+                    lastInserted.parentNode.insertBefore(fragment, lastInserted.nextSibling);
+                    
                     template._forData.renderedElements.push(...elements);
+                    lastInserted = elements[elements.length - 1] || lastInserted;
                 }
                 
                 index++;
